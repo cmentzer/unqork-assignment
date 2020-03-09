@@ -33,7 +33,7 @@ In addition, for extra credit:
 A lot of the decisions that I made during the course of working on this assignment come down to the implied time constraint. 
 - Most of the "setup" steps like auth and configuring kubectl are not automated
 - The Rancher deployment used is just the containerized "try it out" version of Rancher; in the real world I'd probably encourage a greenfield deployment of Rancher via helm onto it's own dedicated Kubernetes cluster, as suggested in their docs.
-- There are a TON of opportunities to make the code used more abstract and to conform to ansible best practices for project structure.
+- There are a TON of opportunities to make the code used more abstract and to conform to ansible best practices for project structure. -- in fact, I basically completely forgo the standard ansible best practice project structure, becuase a lot of it just doesn't make sense when the `only` thing you're doing is provisioning infra. 
 
 That being said, I'm curious about the decision to have the candidate (me) use Ansible to provision eks and configure kubernetes resources, when provisioning infrastructure is, in my opinion, far from the best tool for the job. So much of Ansible's functionality is based around the concept of existing inventory, which is where the majority of Ansible "best practices" arose. dynamic inventory management, ansible roles, and the ability to leverage tags on existing infrastructure to determine roles and variable values via group vars makes Ansible ideal for configuration of existing infrastructure, but it's pretty terrible at creating that infracture. 
 
