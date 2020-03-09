@@ -1,0 +1,17 @@
+# this file deploys an eks cluster with example services, 
+# as well as a corresponding rancher instance in the same VPC
+---
+
+# provisions the following:
+# - VPC
+# - internet gateway
+# - 2 subnets w/ routing table
+# - eks cluster, secruity group, iam role
+# - eks node group, via cloudformation
+#   - 3 ec2 instances in node group
+#   - iam role for nodes
+- import_playbook: playbooks/core_infra/provision_eks_infra.yml
+
+# leverages template to deploy tomcat pod w/ LB to eks
+- import_playbook: playbooks/k8s/deploy_tomcat.yml
+

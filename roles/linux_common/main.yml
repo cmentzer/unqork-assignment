@@ -1,0 +1,15 @@
+---
+- hosts: os_linux
+
+# just throwing something here to placehold, but ideally you'd put whatever configuration
+# is common across all linux nodes in your infra stack (assuming you want to do that).
+# Mostly this is just here to flesh out the project structure
+- tasks:
+  - name: Touch again the same file, but dont change times this makes the task idempotent
+    file:
+      path: /etc/foo.conf
+      state: touch
+      mode: 0644
+      modification_time: preserve
+      access_time: preserve
+

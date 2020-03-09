@@ -1,0 +1,126 @@
+---
+
+# Provision infrastructure to support EKS cluster 
+# as well as the EKS cluster itself
+
+- hosts: localhost
+  connection: local
+  gather_facts: False
+
+  vars:
+    - region: us-east-1
+    - local_ip: 172.31.83.242
+
+  tasks:
+  - name: Provision new VPC
+    ec2_vpc_net:
+      name: eks_vpc
+      cidr_block: "10.0.0.0/16"
+      region: "{{region}}"
+      tags:
+        Name: eks
+    register: eks_vpc_info
+
+  - name: Setup internet gateway
+    ec2_vpc_igw:
+      vpc_id: "{{eks_vpc_info.vpc.id}}"
+      region: "{{region}}"
+      state: present
+      tags:
+        Name: eks_gateway
+    register: eks_gateway_info
+
+  - name: Create public subnet a
+    ec2_vpc_subnet:
+      state: present
+      vpc_id: "{{eks_vpc_info.vpc.id}}"
+      cidr: "10.0.1.0/24"
+      map_public: yes
+      az: "{{region}}a"
+      tags:
+        Name: eks public subnet a
+        kubernetes.io/cluster/eks_cluster: shared
+    register: eks_public_subnet_a_info
+ 
+  - name: Create public subnet b
+    ec2_vpc_subnet:
+      state: present
+      vpc_id: "{{eks_vpc_info.vpc.id}}"
+      cidr: "10.0.2.0/24"
+      map_public: yes
+      az: "{{region}}b"
+      tags:
+        Name: eks public subnet b
+        kubernetes.io/cluster/eks_cluster: shared
+    register: eks_public_subnet_b_info
+
+  - name: Configure routing for subnets
+    ec2_vpc_route_table:
+      vpc_id: "{{eks_vpc_info.vpc.id}}"
+      region: "{{region}}"
+      subnets:
+        - "{{ eks_public_subnet_a_info.subnet.id }}"
+        - "{{ eks_public_subnet_b_info.subnet.id }}"
+      routes:
+        - dest: 0.0.0.0/0
+          gateway_id: "{{ eks_gateway_info.gateway_id }}"
+      tags:
+        Name: eks public route table
+    register: eks_public_route_table_info
+
+  - name: Create security group for eks
+    ec2_group:
+      name: eks_cluster_security_group
+      description: allow cluster to reach nodes
+      vpc_id: "{{eks_vpc_info.vpc.id}}"
+      region: "{{region}}"
+      rules:
+        - proto: tcp
+          ports: [443, 80]
+          cidr_ip: 95.174.66.0/24 #allow home address to reach -- wouldn't do this in a real environment
+        - proto: all
+          group_name: eks_cluster_security_group
+      rules_egress:
+        - proto: all
+          cidr_ip: 0.0.0.0/0
+    register: eks_sg_info
+
+  - name: create IAM role for EKS cluster
+    iam_role:
+      name: eks_cluster_role
+      state: present
+      assume_role_policy_document: "{{ lookup('file', 'policy.json') }}"
+      managed_policy:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+    register: eks_cluster_role_info
+
+  - name: provision eks cluster
+    aws_eks_cluster:
+      name: eks_cluster
+      state: present
+      role_arn: "{{ eks_cluster_role_info.arn }}"
+      wait: yes
+      subnets:
+        - "{{ eks_public_subnet_a_info.subnet.id }}"
+        - "{{ eks_public_subnet_b_info.subnet.id }}"
+      security_groups:
+        - "{{eks_sg_info.group_id}}"
+    register: eks_cluster_info
+
+  - name: create eks nodegroup with cloudformation
+    cloudformation: 
+      stack_name: eks-nodegroup
+      state: present
+      region: "{{region}}"
+      disable_rollback: false
+      template: cloudformation/eks_nodegroup.yml
+      template_parameters:
+        ClusterName: "{{ eks_cluster_info.name }}"
+        NodeGroupName: eks-nodegroup
+        NodeGroupDesiredCapacity: 3
+        NodeInstanceType: t2.micro
+        Subnets: "{{ eks_public_subnet_a_info.subnet.id }}, {{ eks_public_subnet_b_info.subnet.id }}"
+      tags:
+        Role: eks_worker
+          

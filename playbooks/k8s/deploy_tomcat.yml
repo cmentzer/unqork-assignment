@@ -1,0 +1,14 @@
+# deploy the contents of the kubernetes tomcat template
+
+---
+- hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: deploy tomcat to k8s via template
+      k8s:
+        definition: "{{ item }}"
+        kubeconfig: "~/.kube/eks-example"
+        state: present
+      loop: "{{ lookup('template', '../../k8s_templates/tomcat.yml') | from_yaml_all | list }}"
+

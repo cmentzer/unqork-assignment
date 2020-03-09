@@ -1,0 +1,72 @@
+# Kubernetes managed tomcat service
+#
+#
+---
+# tomcat service definition
+apiVersion: v1
+kind: Service
+metadata:
+  name: tomcat
+  namespace: default
+  labels:
+    app: tomcat
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: tomcat
+    tier: frontend
+  type: LoadBalancer
+
+---
+# tomcat volume definition
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tomcat-pv-claim
+  namespace: default
+  labels:
+    app: tomcat
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# tomcat app definition
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tomcat
+  namespace: default
+  labels:
+    app: tomcat
+spec:
+  selector:
+    matchLabels:
+      app: tomcat
+      tier: frontend
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: tomcat
+        tier: frontend
+    spec:
+      containers:
+      - image: tomcat:9.0
+        name: tomcat
+        ports:
+        - containerPort: 8080
+          name: tomcat-http
+        volumeMounts:
+        - name: tomcat-persistent-storage
+          mountPath: /var/www/html
+      volumes:
+      - name: tomcat-persistent-storage
+        persistentVolumeClaim:
+          claimName: tomcat-pv-claim
